@@ -3,12 +3,12 @@
   <div class="app-container">
     <div class="warpper">
       <h1 class="demo-home__title">
-        <img src="https://img.yzcdn.cn/vant/logo.png">
+        <img src="https://img.yzcdn.cn/vant/logo.png" />
         <span>VUE H5开发模板</span>
       </h1>
       <h2 class="demo-home__desc">A vue h5 template with Vant UI</h2>
     </div>
-    <van-cell icon="success" v-for="item in list" :key="item" :title="item"/>
+    <van-cell icon="success" v-for="item in list" :key="item" :title="item" />
     <van-tabbar fixed v-model="active" @change="onChange">
       <van-tabbar-item icon="home-o">首页</van-tabbar-item>
       <van-tabbar-item icon="good-job-o">github</van-tabbar-item>

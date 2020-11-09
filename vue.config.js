@@ -1,39 +1,11 @@
-'use strict'
-const path = require('path')
-const defaultSettings = require('./src/config/index.js')
+'use strict';
+const path = require('path');
+const CompressionPlugin = require('compression-webpack-plugin');
 
 function resolve(dir) {
-  return path.join(__dirname, dir)
+  return path.join(__dirname, dir);
 }
-const name = defaultSettings.title || 'vant-ui-template' // page title
-const port = 9018 // dev port
-const externals = {
-  vue: 'Vue',
-  'vue-router': 'VueRouter',
-  vuex: 'Vuex',
-  vant: 'vant',
-  axios: 'axios'
-}
-// cdn
-const cdn = {
-  // 开发环境
-  dev: {
-    css: [],
-    js: []
-  },
-  // 生产环境
-  build: {
-    css: ['https://cdn.jsdelivr.net/npm/vant@2.5/lib/index.css'],
-    js: [
-      'https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.6/vue-router.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/vuex/3.1.1/vuex.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.min.js',
-      'https://cdn.jsdelivr.net/npm/vant@2.5/lib/vant.min.js'
-    ]
-  }
-}
+
 module.exports = {
   // publicPath: './', // router hash 模式使用
   publicPath: process.env.NODE_ENV === 'development' ? '/' : '/', //router history模式使用 需要区分生产环境和开发环境，不然build会报错
@@ -42,7 +14,7 @@ module.exports = {
   lintOnSave: process.env.NODE_ENV === 'development',
   productionSourceMap: false,
   devServer: {
-    port: port,
+    port: '9521',
     open: true,
     overlay: {
       warnings: false,
@@ -66,47 +38,50 @@ module.exports = {
           // 直接覆盖变量
           'text-color': '#111',
           'border-color': '#eee'
-        },
-      },
-    },
-  },
-
-  configureWebpack: config => {
-    // 为生产环境修改配置...
-    if (process.env.NODE_ENV === 'production') {
-      // externals里的模块不打包
-      Object.assign(config, {
-        name: name,
-        externals: externals
-      })
+        }
+      }
     }
-    // 为开发环境修改配置...
-    // if (process.env.NODE_ENV === 'development') {
-    // }
   },
-  chainWebpack(config) {
-    config.plugins.delete('preload') // TODO: need test
-    config.plugins.delete('prefetch') // TODO: need test
-    // alias
-    config.resolve.alias
-      .set('@', resolve('src'))
-      .set('assets', resolve('src/assets'))
-      .set('api', resolve('src/api'))
-      .set('views', resolve('src/views'))
-      .set('components', resolve('src/components'))
 
-    /**
-     * 添加CDN参数到htmlWebpackPlugin配置中， 详见public/index.html 修改
-     */
-    config.plugin('html').tap(args => {
-      if (process.env.NODE_ENV === 'production') {
-        args[0].cdn = cdn.build
-      }
-      if (process.env.NODE_ENV === 'development') {
-        args[0].cdn = cdn.dev
-      }
-      return args
-    })
+  configureWebpack: () => {
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        plugins: [
+          new CompressionPlugin({
+            filename: '[path].gz[query]',
+            algorithm: 'gzip',
+            test: new RegExp('\\.(' + ['js', 'css', 'html'].join('|') + ')$'),
+            threshold: 10240,
+            minRatio: 0.8
+          })
+        ]
+      };
+    }
+  },
+
+  // webpack 链接 API，用于生成和修改 webapck 配置
+  // https://github.com/mozilla-neutrino/webpack-chain
+  chainWebpack(config) {
+    //设置别名
+    config.resolve.alias.set('@', resolve('src'));
+
+    // svg loader
+    const svgRule = config.module.rule('svg'); // 找到svg-loader
+    svgRule.uses.clear(); // 清除已有的loader, 如果不这样做会添加在此loader之后
+    svgRule.exclude.add(/node_modules/); // 正则匹配排除node_modules目录
+    // 添加svg新的loader处理
+    svgRule
+      .test(/\.svg$/)
+      .use('svg-sprite-loader')
+      .loader('svg-sprite-loader')
+      .options({
+        symbolId: 'icon-[name]'
+      });
+
+    // 修改images loader 添加svg处理
+    const imagesRule = config.module.rule('images');
+    imagesRule.exclude.add(resolve('src/icons'));
+    config.module.rule('images').test(/\.(png|jpe?g|gif|svg)(\?.*)?$/);
 
     // set preserveWhitespace
     config.module
@@ -114,43 +89,9 @@ module.exports = {
       .use('vue-loader')
       .loader('vue-loader')
       .tap(options => {
-        options.compilerOptions.preserveWhitespace = true
-        return options
+        options.compilerOptions.preserveWhitespace = true;
+        return options;
       })
-      .end()
-
-    config
-      // https://webpack.js.org/configuration/devtool/#development
-      .when(process.env.NODE_ENV === 'development', config => config.devtool('cheap-source-map'))
-
-    config.when(process.env.NODE_ENV !== 'development', config => {
-      config
-        .plugin('ScriptExtHtmlWebpackPlugin')
-        .after('html')
-        .use('script-ext-html-webpack-plugin', [{
-          // `runtime` must same as runtimeChunk name. default is `runtime`
-          inline: /runtime\..*\.js$/
-        }])
-        .end()
-      config.optimization.splitChunks({
-        chunks: 'all',
-        cacheGroups: {
-          commons: {
-            name: 'chunk-commons',
-            test: resolve('src/components'), // can customize your rules
-            minChunks: 3, //  minimum common number
-            priority: 5,
-            reuseExistingChunk: true
-          },
-          libs: {
-            name: 'chunk-libs',
-            chunks: 'initial', // only package third parties that are initially dependent
-            test: /[\\/]node_modules[\\/]/,
-            priority: 10
-          }
-        }
-      })
-      config.optimization.runtimeChunk('single')
-    })
+      .end();
   }
 }
